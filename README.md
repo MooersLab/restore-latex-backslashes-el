@@ -668,6 +668,13 @@ See [LICENSE](LICENSE) for the full text.
 
 ## Author
 
-Blaine Mooers, Department of Biochemistry and Physiology, University of
-Oklahoma Health Campus.
+Blaine Mooers, Department of Biochemistry and Physiology, University of Oklahoma Health Sciences Center.
 Email blaine-mooers@ou.edu.
+
+## Sources of funding
+
+- NIH: R01 CA242845.
+- NIH: R01 AI088011.
+- NIH: P30 CA225520 (PI: R. Mannel).
+- NIH: P20 GM103640 and P30 GM145423 (PI: A. West).
+- 
