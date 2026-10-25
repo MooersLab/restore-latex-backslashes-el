@@ -1,0 +1,1 @@
+Invoke this package to restore the backslashes in LaTeX that is either in the current buffer or in a tex file on disk.
