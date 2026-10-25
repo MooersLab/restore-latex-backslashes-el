@@ -1,0 +1,29 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs_version:
+          - 27.2
+          - 28.2
+          - 29.4
+          - 30.1
+          - snapshot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs_version }}
+      - name: Byte-compile, checkdoc, and test
+        run: make all
+      - name: package-lint
+        run: |
+          git clone --depth 1 https://github.com/purcell/package-lint.git /tmp/package-lint
+          make lint PACKAGE_LINT_DIR=/tmp/package-lint

@@ -1,0 +1,73 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{parskip}
+\usepackage[margin=1in]{geometry}
+
+\title{Restoring Backslashes}
+\author{A. Author}
+\date{October 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section{Introduction}
+\label{sec:intro}
+
+\noindent Crystals diffracted to 1.5 \AA{} in 80\% of trials.
+The structure is described in \cite{Smith2020} and in Section~\ref{sec:methods}.
+We thank Smith \& Jones for \textbf{bold} and \emph{emphasized} help.
+
+\subsection*{Background}
+
+The energy is $E = \frac{1}{2} m v^2$ and the angle is $\theta \leq \pi$.
+The sum $\sum_{i=1}^{n} \alpha_i \to \infty$ converges when $x_{in} \in A$.
+The alpha particles and beta sheets in this prose are left alone.
+
+\begin{equation}
+  \label{eq:main}
+  \Delta G = \Delta H - T \Delta S \quad \text{for all} \quad T > 0
+\end{equation}
+
+\begin{align}
+  a &= \sqrt{b^2 + c^2} \\
+  \nabla \cdot \vec{E} &= \frac{\rho}{\epsilon_0}
+\end{align}
+
+\section{Methods}
+\label{sec:methods}
+
+\begin{itemize}
+  \item First item with an item inside the sentence.
+  \item[b)] Second item.
+\end{itemize}
+
+\begin{table}[h]
+  \centering
+  \caption{Data collection statistics.}
+  \begin{tabular}{lr}
+    \toprule
+    Parameter & Value \\
+    \midrule
+    Resolution & 1.5 \\
+    Completeness & 99.1 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.8\textwidth]{figures/my_figure.png}
+  \caption{A figure.}
+\end{figure}
+
+\begin{verbatim}
+section{this stays as it is}
+\end{verbatim}
+
+See \url{https://example.org/a%20b} for details.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+\end{document}

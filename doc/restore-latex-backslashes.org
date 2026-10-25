@@ -1,0 +1,375 @@
+#+TITLE: restore-latex-backslashes Reference Manual
+#+AUTHOR: Blaine Mooers
+#+EMAIL: blaine-mooers@ou.edu
+#+OPTIONS: toc:2 num:t
+#+LaTeX_HEADER: \usepackage[margin=0.5in]{geometry}
+#+LaTeX_HEADER: \usepackage{booktabs}
+#+LaTeX_HEADER: \usepackage{makeidx}
+#+LaTeX_HEADER: \makeindex
+
+This manual describes version 0.1.0 of the Emacs package
+=restore-latex-backslashes=.
+The README file holds the installation instructions and a step-by-step
+tutorial.
+This manual is the reference for the commands, the options, the rules, and
+the Lisp interface.
+
+* Overview
+#+LATEX: \index{overview}\index{damage!deleted backslashes}\index{damage!escape sequences}
+
+The package repairs LaTeX source that another program has damaged in one of
+two ways.
+
+- Deletion :: Every backslash was removed, so =\section{A}= became
+  =section{A}=.
+- Escape processing :: Every backslash started a string escape sequence, so
+  =\textbf{A}= became a TAB followed by =extbf{A}=.
+
+The repair is a sequence of rules.
+Each rule knows a vocabulary of command names and a context in which a bare
+word from that vocabulary is safe to treat as a command.
+The repair is idempotent, so a second run never changes text that the first
+run produced.
+
+* Commands
+#+LATEX: \index{commands}
+
+** Repairing text in a buffer
+#+LATEX: \index{commands!buffer}\index{commands!region}\index{undo}
+
+#+CAPTION: Commands that repair text in the current buffer.
+#+ATTR_LATEX: :booktabs t :align lp{4in}
+| Command                            | Behavior                                                       |
+|------------------------------------+----------------------------------------------------------------|
+| =restore-latex-backslashes=        | Repair the active region, or the accessible buffer without one |
+| =restore-latex-backslashes-buffer= | Repair the accessible part of the buffer                       |
+| =restore-latex-backslashes-region= | Repair the text between BEG and END                            |
+| =restore-latex-backslashes-query=  | Ask about each change before making it                         |
+| =restore-latex-backslashes-diff=   | Show the changes as a unified diff and change nothing          |
+
+Each of the first four commands records its work as one undoable change, so
+a single =C-/= reverses the whole repair.
+Each signals =buffer-read-only= in a read-only buffer.
+Each returns the statistics alist described in [[*Return values]].
+
+Narrowing is respected.
+Rules that depend on context, such as the =item= rule and the =math= rule,
+see only the accessible text, so a region should include the =\begin= and
+=\end= lines of any environment that matters.
+
+** Query mode keys
+#+LATEX: \index{query mode}
+
+#+CAPTION: Keys accepted by restore-latex-backslashes-query.
+#+ATTR_LATEX: :booktabs t
+| Key        | Action                                       |
+|------------+----------------------------------------------|
+| =y=, =SPC= | Make this change                             |
+| =n=, =DEL= | Skip this change                             |
+| =!=        | Make this change and every remaining change  |
+| =q=        | Stop and keep the changes made so far        |
+
+The candidate text is highlighted with the face
+=restore-latex-backslashes-query-face=, which inherits from =query-replace=.
+Candidates are presented rule by rule in the order given by
+=restore-latex-backslashes-rules=.
+
+** Repairing files
+#+LATEX: \index{commands!file}\index{backup}\index{coding system}
+
+#+CAPTION: Commands that repair files on disk.
+#+ATTR_LATEX: :booktabs t :align lp{4in}
+| Command                               | Behavior                                         |
+|---------------------------------------+--------------------------------------------------|
+| =restore-latex-backslashes-file=      | Repair FILE in place, or write to OUTPUT-FILE    |
+| =restore-latex-backslashes-diff-file= | Show the changes to FILE as a diff               |
+| =restore-latex-backslashes-dired=     | Repair every file marked in Dired                |
+| =restore-latex-backslashes-batch=     | Repair the files named on the command line       |
+
+=restore-latex-backslashes-file= behaves as follows.
+
+1. It refuses to run when a buffer visits FILE and has unsaved changes,
+   because writing the file would discard those changes.
+2. It reads FILE with the usual coding-system detection.
+3. It repairs the text in a temporary buffer.
+4. When nothing changed and no OUTPUT-FILE was given, it stops without
+   writing anything.
+5. When repairing in place, it copies FILE to FILE plus
+   =restore-latex-backslashes-backup-suffix= unless that option is =nil=.
+6. It writes the result with the coding system that it read.
+7. It reverts any unmodified buffer that visits the target file.
+
+Interactively, a prefix argument makes the command ask for OUTPUT-FILE.
+
+** Batch use
+#+LATEX: \index{batch mode}\index{command line}
+
+#+begin_src sh
+emacs --batch -l restore-latex-backslashes.el \
+      -f restore-latex-backslashes-batch [--dry-run] [--no-backup] FILE...
+#+end_src
+
+#+CAPTION: Flags accepted by restore-latex-backslashes-batch.
+#+ATTR_LATEX: :booktabs t
+| Flag          | Effect                                       |
+|---------------+----------------------------------------------|
+| =--dry-run=   | Report the changes and write nothing         |
+| =--no-backup= | Do not make backup copies                    |
+
+The command prints one summary line per file and exits with status 0 when
+every file succeeded and 1 when any file failed.
+Options can be set with =--eval= placed before =-f=.
+
+* Rules
+#+LATEX: \index{rules}
+
+The option =restore-latex-backslashes-rules= lists the rules in the order
+that they run.
+All candidate changes for one rule are computed and applied before the next
+rule runs, so later rules see the environments that earlier rules restored.
+
+#+CAPTION: The ten rules in their default order.
+#+ATTR_LATEX: :booktabs t :align llp{3.8in}
+| Order | Rule           | Restores                                                     |
+|-------+----------------+--------------------------------------------------------------|
+|     1 | =escapes=      | Control characters left by escape processing                 |
+|     2 | =environments= | =begin{= and =end{=                                          |
+|     3 | =braced=       | Known commands followed directly by ={= or =[=               |
+|     4 | =anywhere=     | Commands that are never English words                        |
+|     5 | =line=         | Commands that stand alone on a line                          |
+|     6 | =item=         | =item= at the start of a line inside a list environment      |
+|     7 | =math=         | Math symbols inside math                                     |
+|     8 | =row-ends=     | Row terminators inside alignment environments                |
+|     9 | =percent=      | =%= after a digit                                            |
+|    10 | =ampersand=    | A lone =&= in running text                                   |
+
+** The escapes rule
+#+LATEX: \index{rules!escapes}\index{control characters}
+
+The characters BEL, BS, ESC, FF, VT, and CR never belong in LaTeX source.
+When one of them is followed by a letter, the rule replaces it with a
+backslash and the letter that produced it.
+
+#+CAPTION: Control characters repaired unconditionally.
+#+ATTR_LATEX: :booktabs t
+| Character       | Code | Becomes | Example damage     |
+|-----------------+------+---------+--------------------|
+| BEL             |    7 | =\a=    | =\alpha=           |
+| BS (backspace)  |    8 | =\b=    | =\begin=, =\beta=  |
+| ESC             |   27 | =\e=    | =\emph=, =\end=    |
+| FF (form feed)  |   12 | =\f=    | =\frac=            |
+| VT              |   11 | =\v=    | =\vec=, =\vspace=  |
+| CR              |   13 | =\r=    | =\ref=, =\rho=     |
+
+TAB and newline are legitimate characters, so the rule repairs them only
+when the rest of a known command name follows.
+The fragment after the character must be at least two letters long, must
+not itself be a command name, and must not appear in
+=restore-latex-backslashes-escape-stoplist=.
+For example, a TAB followed by =extbf= becomes =\textbf=, but a TAB followed
+by =frac= is left alone because =frac= is a command name on its own and the
+TAB may be indentation.
+
+** The environments rule
+#+LATEX: \index{rules!environments}
+
+The words =begin= and =end= followed directly by ={= gain a backslash.
+This rule runs early because every later rule uses environments as context.
+
+** The braced rule
+#+LATEX: \index{rules!braced}
+
+A word from =restore-latex-backslashes-braced-commands= gains a backslash
+when it is followed directly by ={= or =[=, or by =*= and then ={= or =[=.
+The words =section 3= stay as they are because a space separates the word
+from the digit.
+
+** The anywhere rule
+#+LATEX: \index{rules!anywhere}
+
+A word from =restore-latex-backslashes-anywhere-commands= gains a backslash
+wherever it appears as a whole word outside protected text.
+Every entry in this list must be a word that never occurs in prose.
+This is the rule that turns =width=0.5textwidth= into
+=width=0.5\textwidth=.
+
+** The line rule
+#+LATEX: \index{rules!line}
+
+A word from =restore-latex-backslashes-line-commands= gains a backslash when
+nothing but blanks shares its line.
+These words, such as =centering=, =small=, and =appendix=, are also English
+words, so they are restored only in this unambiguous position.
+
+** The item rule
+#+LATEX: \index{rules!item}\index{list environments}
+
+The word =item= gains a backslash when only blanks precede it on its line,
+when a blank, =[=, or the end of the line follows it, and when it lies
+inside an environment from =restore-latex-backslashes-list-environments=.
+
+** The math rule
+#+LATEX: \index{rules!math}\index{math detection}\index{Pandoc}
+
+A word from =restore-latex-backslashes-math-commands= gains a backslash when
+it lies inside math.
+Math is any of these.
+
+- =$...$= that satisfies Pandoc's rules for inline math.
+  The opening =$= must be followed by a non-space character.
+  The closing =$= must follow a non-space character, must not be followed by
+  a digit, and must lie in the same paragraph.
+- =$$...$$=.
+- =\(...\)= and =\[...\]= when their backslashes survived.
+- An environment from =restore-latex-backslashes-math-environments=.
+
+Two exceptions apply inside math.
+Words inside the first argument of a command from
+=restore-latex-backslashes-math-text-commands= are skipped, so
+=\text{for x in S}= stays as it is.
+Words from =restore-latex-backslashes-math-subscript-exclusions= are skipped
+when they follow =_=, =^=, =_{=, or =^{= directly, so =T_{max}= keeps its
+meaning.
+
+** The row-ends rule
+#+LATEX: \index{rules!row-ends}\index{tables}
+
+This rule works inside environments from
+=restore-latex-backslashes-alignment-environments= and obeys
+=restore-latex-backslashes-row-ends=.
+
+#+CAPTION: Values of restore-latex-backslashes-row-ends.
+#+ATTR_LATEX: :booktabs t :align lp{4.5in}
+| Value    | Behavior                                                                  |
+|----------+---------------------------------------------------------------------------|
+| =nil=    | Do nothing                                                                |
+| =single= | Turn a lone =\= at the end of a row into =\\=                             |
+| =all=    | Also append =\\= to each row that has =&= and no terminator, except the last row |
+
+Use =single= for escape damage, which halves every =\\=.
+Use =all= for deletion damage, which removes every =\\=.
+
+** The percent rule
+#+LATEX: \index{rules!percent}
+
+A =%= that follows a digit becomes =\%=.
+A =%= after a letter or a blank is left alone because it is more often a
+real comment.
+
+** The ampersand rule
+#+LATEX: \index{rules!ampersand}
+
+An =&= becomes =\&= when it is outside alignment environments, outside math,
+outside protected text, the only =&= on its line, and on a line that does not
+end with =\\=.
+A line with two or more =&= characters looks like a table row and is left
+alone.
+
+* Protected text
+#+LATEX: \index{protected text}\index{verbatim}
+
+Every rule after =environments= skips protected text.
+
+- The contents of environments in
+  =restore-latex-backslashes-verbatim-environments=.
+- Inline =\verb|...|= and =\lstinline|...|=.
+- The first brace argument of each command in
+  =restore-latex-backslashes-protected-argument-commands=.
+  These arguments hold package names, labels, citation keys, URLs, and file
+  names.
+
+The =escapes= rule ignores protection because control characters are wrong
+everywhere, including inside verbatim text.
+
+* Options
+#+LATEX: \index{options}\index{customization}
+
+#+CAPTION: User options in the restore-latex-backslashes group.
+#+ATTR_LATEX: :booktabs t :align lp{3.5in}
+| Option                                                   | Purpose                                         |
+|----------------------------------------------------------+-------------------------------------------------|
+| =restore-latex-backslashes-rules=                        | Rules to run, in order                          |
+| =restore-latex-backslashes-row-ends=                     | Row terminator repair mode                      |
+| =restore-latex-backslashes-backup-suffix=                | Backup suffix for in-place file repair          |
+| =restore-latex-backslashes-verbose=                      | Report a summary in the echo area               |
+| =restore-latex-backslashes-braced-commands=              | Commands that take an argument                  |
+| =restore-latex-backslashes-anywhere-commands=            | Commands that are never English words           |
+| =restore-latex-backslashes-line-commands=                | Commands restored when alone on a line          |
+| =restore-latex-backslashes-math-commands=                | Symbols restored inside math                    |
+| =restore-latex-backslashes-math-subscript-exclusions=    | Math words skipped after =_= or =^=             |
+| =restore-latex-backslashes-math-text-commands=           | Commands with text arguments inside math        |
+| =restore-latex-backslashes-math-environments=            | Environments that hold math                     |
+| =restore-latex-backslashes-alignment-environments=       | Environments where =&= separates columns        |
+| =restore-latex-backslashes-list-environments=            | Environments where =item= starts a line         |
+| =restore-latex-backslashes-verbatim-environments=        | Environments that are never modified            |
+| =restore-latex-backslashes-protected-argument-commands=  | Commands whose first argument is never modified |
+| =restore-latex-backslashes-escape-stoplist=              | Fragments ignored after TAB or newline          |
+
+Add your own macros with =add-to-list= inside =with-eval-after-load=.
+
+#+begin_src emacs-lisp
+(with-eval-after-load 'restore-latex-backslashes
+  (add-to-list 'restore-latex-backslashes-braced-commands "resid")
+  (setq restore-latex-backslashes-row-ends 'all))
+#+end_src
+
+* Lisp interface
+#+LATEX: \index{Lisp interface}
+
+** Functions
+#+LATEX: \index{Lisp interface!functions}
+
+- =(restore-latex-backslashes-string STRING)= :: Return a repaired copy of
+  STRING.
+- =(restore-latex-backslashes-region BEG END)= :: Repair the text between BEG
+  and END and return the statistics alist.
+- =(restore-latex-backslashes-file FILE &optional OUTPUT-FILE)= :: Repair
+  FILE and return the statistics alist.
+- =(restore-latex-backslashes-summary STATS)= :: Return a one-line
+  description of STATS.
+
+** Return values
+#+LATEX: \index{Lisp interface!statistics}
+
+The repair functions return an alist that maps each rule that ran to the
+number of changes that it made, in the order that the rules ran.
+
+#+begin_src emacs-lisp
+((escapes . 0) (environments . 10) (braced . 12) (anywhere . 5)
+ (line . 1) (item . 2) (math . 9) (row-ends . 3) (percent . 1)
+ (ampersand . 1))
+#+end_src
+
+** The query hook
+#+LATEX: \index{Lisp interface!query function}
+
+The variable =restore-latex-backslashes-query-function= holds the function
+that query mode calls for each candidate.
+It receives the old text, the new text, and the rule name, and it must
+return one of the characters =?y=, =?n=, =?!=, or =?q=.
+The test suite rebinds it to answer automatically.
+
+* Development
+#+LATEX: \index{development}\index{tests}
+
+#+CAPTION: Makefile targets.
+#+ATTR_LATEX: :booktabs t
+| Target          | Action                                         |
+|-----------------+------------------------------------------------|
+| =make test=     | Run the ERT suite against the source file      |
+| =make compile=  | Byte-compile with warnings as errors           |
+| =make test-elc= | Run the ERT suite against the compiled file    |
+| =make checkdoc= | Check docstrings and fail on any warning       |
+| =make lint=     | Run package-lint                               |
+| =make example=  | Print the repaired tutorial example            |
+| =make all=      | Run compile, checkdoc, and test-elc            |
+| =make clean=    | Delete compiled files                          |
+
+New rules follow a simple contract.
+A rule is a function of no arguments that scans the accessible part of the
+current buffer and returns a list of edits without modifying the buffer.
+Each edit is a list =(BEG END NEW RULE)=.
+Register the function in =restore-latex-backslashes--rule-functions= and
+add its symbol to =restore-latex-backslashes-rules=.
+
+#+LATEX: \printindex

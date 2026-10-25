@@ -1,0 +1,42 @@
+documentclass{article}
+usepackage{amsmath}
+usepackage{booktabs}
+
+begin{document}
+
+section{Introduction}
+
+noindent Our crystals diffracted to 1.8 AA{} resolution in 75% of the
+trials.  We thank Smith & Jones for textbf{generous} help with the
+emph{synchrotron} data collection described in Section~ref{sec:methods}.
+
+The free energy is $Delta G = Delta H - T Delta S$ and the rate
+constant obeys $k propto exp(-E_a / RT)$ when $T to infty$.
+
+begin{equation}
+  label{eq:bragg}
+  n lambda = 2 d sin theta
+end{equation}
+
+section{Methods}
+label{sec:methods}
+
+begin{itemize}
+  item Crystals were grown by hanging-drop vapor diffusion.
+  item Data were processed with DIALS.
+end{itemize}
+
+begin{table}[h]
+  centering
+  caption{Data collection statistics.}
+  begin{tabular}{lr}
+    toprule
+    Parameter & Value
+    midrule
+    Resolution & 1.8
+    Completeness & 99.1
+    bottomrule
+  end{tabular}
+end{table}
+
+end{document}
