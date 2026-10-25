@@ -1,4 +1,5 @@
 # restore-latex-backslashes
+![Version](https://img.shields.io/static/v1?label=restore-latex-backslashes-el&message=0.3.1&color=brightcolor)
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 ![Emacs 27.1+](https://img.shields.io/badge/Emacs-27.1%2B-7F5AB6)
